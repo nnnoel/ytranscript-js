@@ -1,0 +1,53 @@
+{
+  "name": "ytranscript-api",
+  "version": "0.1.2",
+  "description": "Reliable YouTube transcript extraction API client — your servers never get IP-banned, no proxy management, Whisper fallback for captionless videos.",
+  "keywords": [
+    "youtube",
+    "transcript",
+    "youtube transcript api",
+    "captions",
+    "subtitles",
+    "whisper",
+    "speech-to-text",
+    "transcription"
+  ],
+  "homepage": "https://ytranscript.com/developers",
+  "bugs": {
+    "url": "https://github.com/nnnoel/ytranscript-js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nnnoel/ytranscript-js.git"
+  },
+  "license": "MIT",
+  "author": "yTranscript <support@ytranscript.com> (https://ytranscript.com)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
