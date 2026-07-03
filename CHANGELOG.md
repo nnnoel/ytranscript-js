@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- Fix `exports` map for CommonJS TypeScript consumers: `require` now resolves the CJS declaration file (`index.d.cts`). Previously, TypeScript projects using `"moduleResolution": "nodenext"` from CJS got error TS1479. Plain JavaScript consumers were unaffected.
+
 ## 0.1.2
 
 - SDK moved to its own public repository: [nnnoel/ytranscript-js](https://github.com/nnnoel/ytranscript-js)
