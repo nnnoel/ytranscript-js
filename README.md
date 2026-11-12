@@ -4,7 +4,7 @@
 [![CI](https://github.com/nnnoel/ytranscript-js/actions/workflows/ci.yml/badge.svg)](https://github.com/nnnoel/ytranscript-js/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Official JavaScript/TypeScript client for the [yTranscript API](https://ytranscript.com/developers) — reliable YouTube transcript extraction without proxy management or player-response scraping.
+Official JavaScript/TypeScript client for the [yTranscript API](https://ytranscript.com/developers?utm_source=sdk-readme) — reliable YouTube transcript extraction without proxy management or player-response scraping.
 
 - **Your servers never touch YouTube** — bot detection becomes our problem, not yours. Multi-strategy extraction (edge → direct → residential → Whisper) maximizes success, and failed requests are never charged.
 - **Captionless videos work** — automatic Whisper speech-to-text fallback, one endpoint for every video.
@@ -95,7 +95,7 @@ try {
 
 ## Units & pricing
 
-Caption transcripts cost **1 unit**; Whisper transcriptions (captionless videos) cost **15 units**. Failed requests cost nothing. Plans start at $29/mo for 10,000 units — get an API key at **[ytranscript.com/developers](https://ytranscript.com/developers)**.
+Caption transcripts cost **1 unit**; Whisper transcriptions (captionless videos) cost **15 units**. Failed requests cost nothing. The free plan includes 50 units a month with no card; paid plans start at $9/month for 1,000 units. Get an API key at **[ytranscript.com/developers](https://ytranscript.com/developers?utm_source=sdk-readme)**.
 
 ## Why not scrape it yourself?
 

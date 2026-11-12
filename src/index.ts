@@ -82,7 +82,7 @@ export class YTranscript {
       throw new YTranscriptError(
         "unauthorized",
         0,
-        "An API key (yk_live_...) is required. Get one at https://ytranscript.com/developers"
+        "An API key (yk_live_...) is required. Get one at https://ytranscript.com/developers?utm_source=js-sdk"
       );
     }
     this.apiKey = apiKey;

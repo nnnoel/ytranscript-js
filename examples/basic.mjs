@@ -3,7 +3,7 @@ import { YTranscript, YTranscriptError } from "ytranscript-api";
 
 const apiKey = process.env.YTRANSCRIPT_API_KEY;
 if (!apiKey) {
-  console.error("Set YTRANSCRIPT_API_KEY (get a key at https://ytranscript.com/developers)");
+  console.error("Set YTRANSCRIPT_API_KEY (get a key at https://ytranscript.com/developers?utm_source=js-sdk)");
   process.exit(1);
 }
 

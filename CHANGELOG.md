@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Links to the developer page in the missing-key error, the example and the README carry a source tag.
+- README pricing updated: free plan, paid plans from $9/month.
+
 ## 0.1.3
 
 - Fix `exports` map for CommonJS TypeScript consumers: `require` now resolves the CJS declaration file (`index.d.cts`). Previously, TypeScript projects using `"moduleResolution": "nodenext"` from CJS got error TS1479. Plain JavaScript consumers were unaffected.
