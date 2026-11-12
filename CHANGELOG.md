@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4
 
 - Links to the developer page in the missing-key error, the example and the README carry a source tag.
 - README pricing updated: free plan, paid plans from $9/month.
