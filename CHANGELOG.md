@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- New `yt.video(videoIdOrUrl)`: video metadata (title, description, duration, views, likes, publish date, channel, tags, category, chapters, thumbnails) for 1 unit.
+- New `{ metadata: true }` option on `yt.transcript()`: the same metadata alongside the transcript at no extra cost.
+- New error codes: `temporarily_unavailable` (503, YouTube is blocking the API; retry later) and `not_found` (404 from `yt.video`).
+- `YTranscriptError.retryAfterSeconds` is set when the API says how long to wait.
+- Default timeout raised from 120 s to 300 s. Whisper transcription of a long video can take longer than 120 s, and a request that timed out on the client was still charged.
+
 ## 0.1.4
 
 - Links to the developer page in the missing-key error, the example and the README carry a source tag.

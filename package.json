@@ -1,11 +1,12 @@
 {
   "name": "ytranscript-api",
-  "version": "0.1.4",
-  "description": "Reliable YouTube transcript extraction API client — your servers never get IP-banned, no proxy management, Whisper fallback for captionless videos.",
+  "version": "0.2.0",
+  "description": "Reliable YouTube transcript and video metadata API client — your servers never get IP-banned, no proxy management, Whisper fallback for captionless videos.",
   "keywords": [
     "youtube",
     "transcript",
     "youtube transcript api",
+    "youtube video metadata",
     "captions",
     "subtitles",
     "whisper",

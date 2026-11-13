@@ -1,5 +1,6 @@
 /**
- * ytranscript-api — official JavaScript/TypeScript client for the yTranscript API.
+ * ytranscript-api — official JavaScript/TypeScript client for the yTranscript API
+ * (YouTube transcripts and video metadata).
  *
  * Docs & API keys: https://ytranscript.com/developers
  */
@@ -28,6 +29,56 @@ export interface Transcript {
   segments: TranscriptSegment[];
   /** Convenience: all segment text joined with spaces */
   text: string;
+  /**
+   * Present only when requested with `{ metadata: true }`. `null` if the metadata could not be
+   * read (the transcript is still returned).
+   */
+  metadata?: VideoMetadata | null;
+}
+
+export interface VideoChapter {
+  title: string;
+  startSeconds: number;
+}
+
+export interface VideoThumbnail {
+  url: string;
+  width: number;
+  height: number;
+}
+
+export interface VideoMetadata {
+  videoId: string;
+  title: string;
+  description: string | null;
+  /** `null` when YouTube limits what it shows the API's servers */
+  durationSeconds: number | null;
+  viewCount: number | null;
+  likeCount: number | null;
+  /** ISO 8601. Usually with a time; a date only (YYYY-MM-DD) when YouTube limits the page */
+  publishedAt: string | null;
+  channel: {
+    id: string | null;
+    name: string | null;
+    /** e.g. "@RickAstleyYT" */
+    handle: string | null;
+    url: string | null;
+    /** Rounded the way YouTube displays it (4.56M -> 4560000) */
+    subscriberCount: number | null;
+  };
+  /** `null` when YouTube limits the page; `[]` when the video has no tags */
+  tags: string[] | null;
+  category: string | null;
+  chapters: VideoChapter[];
+  thumbnails: VideoThumbnail[];
+  isLive: boolean;
+}
+
+export interface Video extends VideoMetadata {
+  /** True when served from cache */
+  cached: boolean;
+  /** Quota units this request consumed (1) */
+  unitsCharged: number;
 }
 
 export interface QuotaInfo {
@@ -42,31 +93,44 @@ export type ErrorCode =
   | "rate_limited"
   | "bad_request"
   | "no_transcript"
+  | "not_found"
+  | "temporarily_unavailable"
   | "fetch_failed"
   | "network_error";
 
 export class YTranscriptError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
+  /**
+   * How long to wait before retrying, when the API says so (`rate_limited` and
+   * `temporarily_unavailable`).
+   */
+  readonly retryAfterSeconds?: number;
 
-  constructor(code: ErrorCode, status: number, message: string) {
+  constructor(code: ErrorCode, status: number, message: string, retryAfterSeconds?: number) {
     super(message);
     this.name = "YTranscriptError";
     this.code = code;
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
 export interface ClientOptions {
   /** Override the API base URL (rarely needed) */
   baseUrl?: string;
-  /** Request timeout in milliseconds (default 120s — Whisper fallbacks take time) */
+  /**
+   * Request timeout in milliseconds. Default 300s: transcribing a captionless video with Whisper
+   * can take several minutes, and a request that times out here may still be charged.
+   */
   timeoutMs?: number;
 }
 
 export interface TranscriptOptions {
   /** Preferred language code (e.g. "en", "es"). Defaults to the video's source language. */
   lang?: string;
+  /** Also return the video's metadata (title, views, chapters, ...) at no extra cost. */
+  metadata?: boolean;
 }
 
 export class YTranscript {
@@ -87,24 +151,51 @@ export class YTranscript {
     }
     this.apiKey = apiKey;
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
-    this.timeoutMs = options.timeoutMs ?? 120_000;
+    this.timeoutMs = options.timeoutMs ?? 300_000;
   }
 
   /**
    * Fetch the transcript for a video. Accepts a video ID or any YouTube URL.
    */
   async transcript(videoIdOrUrl: string, options: TranscriptOptions = {}): Promise<Transcript> {
-    const params = new URLSearchParams();
-    if (/^[\w-]{11}$/.test(videoIdOrUrl)) {
-      params.set("videoId", videoIdOrUrl);
-    } else {
-      params.set("url", videoIdOrUrl);
-    }
+    const params = videoParams(videoIdOrUrl);
     if (options.lang) params.set("lang", options.lang);
+    if (options.metadata) params.set("metadata", "true");
 
+    const body = await this.request("transcript", params);
+    const segments: TranscriptSegment[] = body.segments ?? [];
+    return {
+      videoId: body.video_id,
+      lang: body.lang,
+      whisper: Boolean(body.whisper),
+      cached: Boolean(body.cached),
+      unitsCharged: Number(body.units_charged ?? 1),
+      segments,
+      text: segments.map((s) => s.text).join(" "),
+      ...(options.metadata ? { metadata: body.metadata ? toVideoMetadata(body.metadata) : null } : {}),
+    };
+  }
+
+  /**
+   * Fetch a video's metadata: title, description, duration, views, likes, publish date,
+   * channel, tags, category, chapters and thumbnails. Accepts a video ID or any YouTube URL.
+   * Costs 1 unit. To get it together with a transcript at no extra cost, use
+   * `transcript(id, { metadata: true })`.
+   */
+  async video(videoIdOrUrl: string): Promise<Video> {
+    const body = await this.request("video", videoParams(videoIdOrUrl));
+    return {
+      ...toVideoMetadata(body),
+      cached: Boolean(body.cached),
+      unitsCharged: Number(body.units_charged ?? 1),
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async request(path: string, params: URLSearchParams): Promise<any> {
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/transcript?${params}`, {
+      response = await fetch(`${this.baseUrl}/${path}?${params}`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
         signal: AbortSignal.timeout(this.timeoutMs),
       });
@@ -132,20 +223,47 @@ export class YTranscript {
     if (!response.ok) {
       const code = (body?.error?.code as ErrorCode) ?? "fetch_failed";
       const message = body?.error?.message ?? `Request failed with status ${response.status}`;
-      throw new YTranscriptError(code, response.status, message);
+      const retryAfter = Number(body?.error?.retry_after_seconds ?? response.headers.get("retry-after"));
+      throw new YTranscriptError(code, response.status, message, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
     }
-
-    const segments: TranscriptSegment[] = body.segments ?? [];
-    return {
-      videoId: body.video_id,
-      lang: body.lang,
-      whisper: Boolean(body.whisper),
-      cached: Boolean(body.cached),
-      unitsCharged: Number(body.units_charged ?? 1),
-      segments,
-      text: segments.map((s) => s.text).join(" "),
-    };
+    return body ?? {};
   }
+}
+
+function videoParams(videoIdOrUrl: string): URLSearchParams {
+  const params = new URLSearchParams();
+  if (/^[\w-]{11}$/.test(videoIdOrUrl)) {
+    params.set("videoId", videoIdOrUrl);
+  } else {
+    params.set("url", videoIdOrUrl);
+  }
+  return params;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toVideoMetadata(m: any): VideoMetadata {
+  return {
+    videoId: m.video_id,
+    title: m.title,
+    description: m.description ?? null,
+    durationSeconds: m.duration_seconds ?? null,
+    viewCount: m.view_count ?? null,
+    likeCount: m.like_count ?? null,
+    publishedAt: m.published_at ?? null,
+    channel: {
+      id: m.channel?.id ?? null,
+      name: m.channel?.name ?? null,
+      handle: m.channel?.handle ?? null,
+      url: m.channel?.url ?? null,
+      subscriberCount: m.channel?.subscriber_count ?? null,
+    },
+    tags: m.tags ?? null,
+    category: m.category ?? null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    chapters: (m.chapters ?? []).map((c: any) => ({ title: c.title, startSeconds: c.start_seconds })),
+    thumbnails: m.thumbnails ?? [],
+    isLive: Boolean(m.is_live),
+  };
 }
 
 export default YTranscript;
