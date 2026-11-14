@@ -47,6 +47,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "typecheck": "tsc --noEmit",
+    "preversion": "node scripts/version.mjs changelog",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "devDependencies": {

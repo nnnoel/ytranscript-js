@@ -1,0 +1,42 @@
+name: Release
+
+# Publishes to npm when a version tag is pushed. See RELEASING.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing: GitHub vouches for this workflow, so no npm token is stored.
+      id-token: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Trusted publishing needs npm 11.5.1 or later, which Node 24 ships with.
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Check the tag, package.json and changelog agree
+        run: node scripts/version.mjs check "$TAG"
+      - run: npm ci
+      - name: Publish to npm
+        run: |
+          name=$(node -p "require('./package.json').name")
+          if [ -n "$(npm view "${name}@${TAG#v}" version 2>/dev/null)" ]; then
+            echo "${name}@${TAG#v} is already on npm. Nothing to publish."
+          else
+            npm publish
+          fi

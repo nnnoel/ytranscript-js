@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- No code changes. Releases are now published from GitHub Actions, so each version on npm carries a provenance statement linking it to the commit it was built from.
+
 ## 0.2.0
 
 - New `yt.video(videoIdOrUrl)`: video metadata (title, description, duration, views, likes, publish date, channel, tags, category, chapters, thumbnails) for 1 unit.
