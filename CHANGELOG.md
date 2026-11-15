@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- New `maxUnits` option on `yt.transcript()`: the most a request may cost. A captionless video whose Whisper transcription would cost more throws `max_units_exceeded` before anything is transcribed or charged. `maxUnits: 1` means captions only.
+- `YTranscriptError.estimatedUnits` is set on `max_units_exceeded`: what the transcription would have cost, or `null` if the video's length couldn't be read.
+- New `audioSeconds` on a live Whisper transcript: the audio length the charge is based on.
+- Docs: Whisper transcription is now charged at 1 unit per minute of audio (minimum 5) instead of a flat 15.
+
 ## 0.2.1
 
 - No code changes. Releases are now published from GitHub Actions, so each version on npm carries a provenance statement linking it to the commit it was built from.

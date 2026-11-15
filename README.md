@@ -59,6 +59,7 @@ Accepts an 11-character video ID or any YouTube URL (`youtube.com/watch`, `youtu
 | --- | --- | --- |
 | `lang` | `string` | Preferred language code (e.g. `"en"`, `"es"`). Defaults to the video's source language. |
 | `metadata` | `boolean` | Also return the video's metadata as `metadata` (see `yt.video`), at no extra cost. It is `null` if the metadata can't be read; the transcript is still returned. |
+| `maxUnits` | `number` | The most this request may cost. If the video has no captions and Whisper transcription would cost more, the call throws `max_units_exceeded` before transcribing and nothing is charged. Use `1` for captions only. |
 
 Returns a `Transcript`:
 
@@ -68,7 +69,8 @@ interface Transcript {
   lang: string;             // language of the returned transcript
   whisper: boolean;         // produced by Whisper speech-to-text
   cached: boolean;          // served from cache (always 1 unit)
-  unitsCharged: number;     // captions: 1, Whisper: 15
+  unitsCharged: number;     // captions: 1, Whisper: 1 per minute of audio (minimum 5)
+  audioSeconds?: number;    // audio length, on live Whisper transcriptions
   segments: { text: string; offset: number; duration: number }[];  // ms offsets
   text: string;             // convenience: all segment text joined
   metadata?: VideoMetadata | null;  // only with { metadata: true }
@@ -119,6 +121,7 @@ try {
     switch (err.code) {
       case "no_transcript":   // 404 — video has no obtainable transcript
       case "not_found":       // 404 — yt.video(): private, removed or nonexistent video
+      case "max_units_exceeded":  // 422 — Whisper would cost more than maxUnits; see err.estimatedUnits
       case "temporarily_unavailable":  // 503 — YouTube is blocking us; retry after err.retryAfterSeconds
       case "quota_exceeded":  // 402 — monthly units exhausted
       case "rate_limited":    // 429 — back off and retry
@@ -135,7 +138,7 @@ try {
 
 ## Units & pricing
 
-Caption transcripts cost **1 unit**; Whisper transcriptions (captionless videos) cost **15 units**. Video metadata costs **1 unit**, or nothing extra with `{ metadata: true }` on a transcript. Failed requests cost nothing. The free plan includes 50 units a month with no card; paid plans start at $9/month for 1,000 units. Get an API key at **[ytranscript.com/developers](https://ytranscript.com/developers?utm_source=sdk-readme)**.
+Caption transcripts cost **1 unit**. Whisper transcriptions (captionless videos) cost **1 unit per minute of audio**, with a minimum of 5; pass `maxUnits` to cap what a request may cost. Video metadata costs **1 unit**, or nothing extra with `{ metadata: true }` on a transcript. Failed requests cost nothing. The free plan includes 50 units a month with no card; paid plans start at $9/month for 1,000 units. Get an API key at **[ytranscript.com/developers](https://ytranscript.com/developers?utm_source=sdk-readme)**.
 
 ## Why not scrape it yourself?
 

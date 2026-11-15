@@ -24,8 +24,13 @@ export interface Transcript {
   whisper: boolean;
   /** True when served from cache */
   cached: boolean;
-  /** Quota units this request consumed (captions: 1, Whisper: 15) */
+  /**
+   * Quota units this request consumed. Captions and cached transcripts: 1. Whisper: 1 per
+   * minute of audio, minimum 5.
+   */
   unitsCharged: number;
+  /** Length of the transcribed audio in seconds. Present on live Whisper transcriptions. */
+  audioSeconds?: number;
   segments: TranscriptSegment[];
   /** Convenience: all segment text joined with spaces */
   text: string;
@@ -94,6 +99,7 @@ export type ErrorCode =
   | "bad_request"
   | "no_transcript"
   | "not_found"
+  | "max_units_exceeded"
   | "temporarily_unavailable"
   | "fetch_failed"
   | "network_error";
@@ -106,13 +112,19 @@ export class YTranscriptError extends Error {
    * `temporarily_unavailable`).
    */
   readonly retryAfterSeconds?: number;
+  /**
+   * On `max_units_exceeded`: what the Whisper transcription would have cost, or `null` if the
+   * video's length couldn't be read. Nothing was charged.
+   */
+  readonly estimatedUnits?: number | null;
 
-  constructor(code: ErrorCode, status: number, message: string, retryAfterSeconds?: number) {
+  constructor(code: ErrorCode, status: number, message: string, retryAfterSeconds?: number, estimatedUnits?: number | null) {
     super(message);
     this.name = "YTranscriptError";
     this.code = code;
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.estimatedUnits = estimatedUnits;
   }
 }
 
@@ -131,6 +143,12 @@ export interface TranscriptOptions {
   lang?: string;
   /** Also return the video's metadata (title, views, chapters, ...) at no extra cost. */
   metadata?: boolean;
+  /**
+   * The most this request may cost. If the video has no captions and Whisper transcription
+   * would cost more, the call throws `max_units_exceeded` (with `estimatedUnits`) before any
+   * transcription starts, and nothing is charged. Use 1 for captions only.
+   */
+  maxUnits?: number;
 }
 
 export class YTranscript {
@@ -161,6 +179,7 @@ export class YTranscript {
     const params = videoParams(videoIdOrUrl);
     if (options.lang) params.set("lang", options.lang);
     if (options.metadata) params.set("metadata", "true");
+    if (options.maxUnits !== undefined) params.set("max_units", String(options.maxUnits));
 
     const body = await this.request("transcript", params);
     const segments: TranscriptSegment[] = body.segments ?? [];
@@ -170,6 +189,7 @@ export class YTranscript {
       whisper: Boolean(body.whisper),
       cached: Boolean(body.cached),
       unitsCharged: Number(body.units_charged ?? 1),
+      ...(typeof body.audio_seconds === "number" ? { audioSeconds: body.audio_seconds } : {}),
       segments,
       text: segments.map((s) => s.text).join(" "),
       ...(options.metadata ? { metadata: body.metadata ? toVideoMetadata(body.metadata) : null } : {}),
@@ -224,7 +244,14 @@ export class YTranscript {
       const code = (body?.error?.code as ErrorCode) ?? "fetch_failed";
       const message = body?.error?.message ?? `Request failed with status ${response.status}`;
       const retryAfter = Number(body?.error?.retry_after_seconds ?? response.headers.get("retry-after"));
-      throw new YTranscriptError(code, response.status, message, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
+      const estimated = body?.error?.estimated_units;
+      throw new YTranscriptError(
+        code,
+        response.status,
+        message,
+        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+        code === "max_units_exceeded" ? (typeof estimated === "number" ? estimated : null) : undefined,
+      );
     }
     return body ?? {};
   }
