@@ -31,6 +31,11 @@ export interface Transcript {
   unitsCharged: number;
   /** Length of the transcribed audio in seconds. Present on live Whisper transcriptions. */
   audioSeconds?: number;
+  /**
+   * Present only when the transcript isn't in the `lang` you asked for: the video has no captions
+   * in it and AI transcription couldn't run, so these are the video's default captions. Says why.
+   */
+  notice?: string;
   segments: TranscriptSegment[];
   /** Convenience: all segment text joined with spaces */
   text: string;
@@ -190,6 +195,7 @@ export class YTranscript {
       cached: Boolean(body.cached),
       unitsCharged: Number(body.units_charged ?? 1),
       ...(typeof body.audio_seconds === "number" ? { audioSeconds: body.audio_seconds } : {}),
+      ...(typeof body.notice === "string" ? { notice: body.notice } : {}),
       segments,
       text: segments.map((s) => s.text).join(" "),
       ...(options.metadata ? { metadata: body.metadata ? toVideoMetadata(body.metadata) : null } : {}),

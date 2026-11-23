@@ -71,6 +71,7 @@ interface Transcript {
   cached: boolean;          // served from cache (always 1 unit)
   unitsCharged: number;     // captions: 1, Whisper: 1 per minute of audio (minimum 5)
   audioSeconds?: number;    // audio length, on live Whisper transcriptions
+  notice?: string;          // only when not in the requested lang: why, and that these are the default captions
   segments: { text: string; offset: number; duration: number }[];  // ms offsets
   text: string;             // convenience: all segment text joined
   metadata?: VideoMetadata | null;  // only with { metadata: true }
