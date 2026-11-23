@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- New `notice` on a transcript: set only when it isn't in the `lang` you asked for. The video has no captions in that language and AI transcription couldn't run (for example `maxUnits` was too low), so these are the video's default captions, and `notice` says why. Otherwise a video with no captions in the requested language is now transcribed with Whisper in the language actually spoken.
+
 ## 0.3.0
 
 - New `maxUnits` option on `yt.transcript()`: the most a request may cost. A captionless video whose Whisper transcription would cost more throws `max_units_exceeded` before anything is transcribed or charged. `maxUnits: 1` means captions only.
