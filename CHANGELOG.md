@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+- New `yt.videos({ channel | playlist, content, publishedAfter, limit, cursor })`: a channel's videos (newest first) or a playlist's, with title, publish date, length and views. Costs 1 unit per started 100 videos. Pass `nextCursor` back as `cursor` for the next page.
+- New `yt.allVideos(options)`: an async iterator over every video, fetching pages as you go.
+
 ## 0.4.0
 
 - New `notice` on a transcript: set only when it isn't in the `lang` you asked for. The video has no captions in that language and AI transcription couldn't run (for example `maxUnits` was too low), so these are the video's default captions, and `notice` says why. Otherwise a video with no captions in the requested language is now transcribed with Whisper in the language actually spoken.

@@ -91,6 +91,57 @@ export interface Video extends VideoMetadata {
   unitsCharged: number;
 }
 
+/** One video in a channel or playlist listing. */
+export interface ListedVideo {
+  videoId: string;
+  title: string | null;
+  /**
+   * Exact publish time (ISO 8601) when `publishedAtExact`, as it is for the newest 15 videos.
+   * Otherwise a date (YYYY-MM-DD) estimated from `publishedText`: the latest the video can have
+   * been published. `null` when YouTube shows no date.
+   */
+  publishedAt: string | null;
+  publishedAtExact: boolean;
+  /** YouTube's own wording, such as "3 weeks ago" */
+  publishedText: string | null;
+  durationSeconds: number | null;
+  viewCount: number | null;
+}
+
+/** One page of a channel's videos (newest first) or a playlist's (in its own order). */
+export interface VideoList {
+  type: "channel" | "playlist";
+  /** The channel ID (UC...) when listing a channel, otherwise null */
+  channelId: string | null;
+  /** The playlist that was listed; for a channel, its uploads playlist */
+  playlistId: string;
+  title: string | null;
+  videos: ListedVideo[];
+  /** Pass as `cursor` to get the next videos; null when there are no more */
+  nextCursor: string | null;
+  /** 1 per started 100 videos returned, at least 1 */
+  unitsCharged: number;
+}
+
+export interface VideosOptions {
+  /** An @handle, a channel URL or a channel ID (UC...). Lists the channel's uploads. */
+  channel?: string;
+  /** A playlist ID or a URL with list= (instead of `channel`) */
+  playlist?: string;
+  /** Channels only: "all" (default, includes Shorts and live streams) or "videos" (regular videos only) */
+  content?: "all" | "videos";
+  /**
+   * A date, YYYY-MM-DD (UTC): only videos published on or after it. A channel's list ends at the
+   * first older video; a playlist is read through. Older videos have estimated dates, so a few
+   * from just before the date can be included: check `publishedAtExact`.
+   */
+  publishedAfter?: string;
+  /** How many videos to return, 1 to 500. Default 100. */
+  limit?: number;
+  /** `nextCursor` from the previous page. It carries the channel or playlist, content and date. */
+  cursor?: string;
+}
+
 export interface QuotaInfo {
   limit: number;
   used: number;
@@ -215,6 +266,59 @@ export class YTranscript {
       cached: Boolean(body.cached),
       unitsCharged: Number(body.units_charged ?? 1),
     };
+  }
+
+  /**
+   * One page of a channel's videos (newest first) or a playlist's (in its own order), with title,
+   * publish date, length and views. Costs 1 unit per started 100 videos returned (at least 1); a
+   * follow-up page with no videos is free. For the next page,
+   * call again with `{ cursor: list.nextCursor }`, or use `allVideos()`.
+   */
+  async videos(options: VideosOptions): Promise<VideoList> {
+    const params = new URLSearchParams();
+    if (options.cursor) {
+      params.set("cursor", options.cursor);
+    } else {
+      if (options.channel) params.set("channel", options.channel);
+      if (options.playlist) params.set("playlist", options.playlist);
+      if (options.content) params.set("content", options.content);
+      if (options.publishedAfter) params.set("published_after", options.publishedAfter);
+    }
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+
+    const body = await this.request("videos", params);
+    return {
+      type: body.type,
+      channelId: body.channel_id ?? null,
+      playlistId: body.playlist_id,
+      title: body.title ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      videos: (body.videos ?? []).map((v: any) => ({
+        videoId: v.video_id,
+        title: v.title ?? null,
+        publishedAt: v.published_at ?? null,
+        publishedAtExact: Boolean(v.published_at_exact),
+        publishedText: v.published_text ?? null,
+        durationSeconds: v.duration_seconds ?? null,
+        viewCount: v.view_count ?? null,
+      })),
+      nextCursor: body.next_cursor ?? null,
+      unitsCharged: Number(body.units_charged ?? 1),
+    };
+  }
+
+  /**
+   * Every video of a channel or playlist, fetched page by page as you iterate
+   * (each page is a `videos()` call, 1 unit per started 100 videos). Stop iterating to stop
+   * fetching; `publishedAfter` ends the list at that date.
+   */
+  async *allVideos(options: Omit<VideosOptions, "cursor">): AsyncGenerator<ListedVideo> {
+    let cursor: string | undefined;
+    do {
+      const page = await this.videos(cursor ? { cursor, limit: options.limit } : options);
+      for (const v of page.videos) yield v;
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

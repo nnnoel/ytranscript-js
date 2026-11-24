@@ -35,6 +35,7 @@ console.log(t.whisper);       // true if Whisper produced it (captionless video)
 console.log(yt.lastQuota);    // { limit: 10000, used: 42, rateLimitRemaining: 59 }
 
 const v = await yt.video("dQw4w9WgXcQ");       // metadata only
+const list = await yt.videos({ channel: "@lexfridman", publishedAfter: "2026-11-01" });  // a channel's videos
 console.log(v.title, v.durationSeconds, v.viewCount, v.chapters);
 
 // Transcript and metadata in one request, for the price of the transcript
@@ -104,6 +105,55 @@ interface Video {
 
 `durationSeconds`, `tags` and `category` can be `null`, and `publishedAt` can be a date without a time, when YouTube limits what it shows our servers. `subscriberCount` is rounded the way YouTube displays it.
 
+### `yt.videos(options)`
+
+One page of a channel's videos (newest first) or a playlist's (in its own order). Costs 1 unit per started 100 videos returned (at least 1); a follow-up page with no videos is free.
+
+```ts
+const list = await yt.videos({ channel: "@lexfridman", publishedAfter: "2026-11-01" });
+for (const v of list.videos) console.log(v.videoId, v.publishedAt, v.title);
+
+// Every regular video of a channel, page by page
+for await (const v of yt.allVideos({ channel: "@lexfridman", content: "videos" })) {
+  const t = await yt.transcript(v.videoId);
+}
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `channel` | `string` | An @handle, a channel URL or a channel ID (`UC...`). Lists the channel's uploads. |
+| `playlist` | `string` | A playlist ID or a URL with `list=`, instead of `channel`. Mixes, Watch Later and private playlists are not supported. |
+| `content` | `"all" \| "videos"` | Channels only. `"all"` (default) includes Shorts and live streams; `"videos"` is regular videos only. |
+| `publishedAfter` | `string` | `YYYY-MM-DD` (UTC). Only videos published on or after it: a channel's list ends at the first older video; a playlist is read through and older videos are left out. |
+| `limit` | `number` | 1 to 500, default 100. |
+| `cursor` | `string` | `nextCursor` from the previous page. It carries the channel or playlist, `content` and `publishedAfter`. |
+
+Returns a `VideoList`:
+
+```ts
+interface VideoList {
+  type: "channel" | "playlist";
+  channelId: string | null;
+  playlistId: string;               // for a channel, its uploads playlist
+  title: string | null;
+  videos: {
+    videoId: string;
+    title: string | null;
+    publishedAt: string | null;     // exact ISO time, or an estimated YYYY-MM-DD (see publishedAtExact)
+    publishedAtExact: boolean;      // true for the newest 15 videos
+    publishedText: string | null;   // YouTube's wording, e.g. "3 weeks ago"
+    durationSeconds: number | null;
+    viewCount: number | null;
+  }[];
+  nextCursor: string | null;        // null when there are no more
+  unitsCharged: number;
+}
+```
+
+Older videos' dates are estimated from YouTube's "3 weeks ago" text: `publishedAt` is then the latest the video can have been published, so `publishedAfter` can include a few videos from just before the date.
+
+`yt.allVideos(options)` takes the same options without `cursor` and yields every video, fetching the next page only as you iterate.
+
 ### `yt.lastQuota`
 
 Quota headers from the most recent successful request: `{ limit, used, rateLimitRemaining }`.
@@ -121,7 +171,8 @@ try {
   if (err instanceof YTranscriptError) {
     switch (err.code) {
       case "no_transcript":   // 404 — video has no obtainable transcript
-      case "not_found":       // 404 — yt.video(): private, removed or nonexistent video
+      case "not_found":       // 404 — yt.video(): private, removed or nonexistent video; yt.videos(): no such channel or playlist
+      case "bad_request":     // 400 — a bad argument, or yt.videos() with an expired cursor (start again without it)
       case "max_units_exceeded":  // 422 — Whisper would cost more than maxUnits; see err.estimatedUnits
       case "temporarily_unavailable":  // 503 — YouTube is blocking us; retry after err.retryAfterSeconds
       case "quota_exceeded":  // 402 — monthly units exhausted
@@ -139,7 +190,7 @@ try {
 
 ## Units & pricing
 
-Caption transcripts cost **1 unit**. Whisper transcriptions (captionless videos) cost **1 unit per minute of audio**, with a minimum of 5; pass `maxUnits` to cap what a request may cost. Video metadata costs **1 unit**, or nothing extra with `{ metadata: true }` on a transcript. Failed requests cost nothing. The free plan includes 50 units a month with no card; paid plans start at $9/month for 1,000 units. Get an API key at **[ytranscript.com/developers](https://ytranscript.com/developers?utm_source=sdk-readme)**.
+Caption transcripts cost **1 unit**. Whisper transcriptions (captionless videos) cost **1 unit per minute of audio**, with a minimum of 5; pass `maxUnits` to cap what a request may cost. Video metadata costs **1 unit**, or nothing extra with `{ metadata: true }` on a transcript. Listing a channel or playlist costs **1 unit per 100 videos**. Failed requests cost nothing. The free plan includes 50 units a month with no card; paid plans start at $9/month for 1,000 units. Get an API key at **[ytranscript.com/developers](https://ytranscript.com/developers?utm_source=sdk-readme)**.
 
 ## Why not scrape it yourself?
 
